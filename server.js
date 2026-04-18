@@ -162,6 +162,8 @@ app.prepare().then(() => {
                 case 'start':
                     streamSid = msg.stream_sid;
                     console.log(`Exotel: Unified Stream started (Sid: ${streamSid})`);
+                    // Immediate proactive greeting
+                    await speakToCustomer("வணக்கம்! நான் உங்களுக்கு இன்று எப்படி உதவ முடியும்? எதைப் பற்றி தெரிந்து கொள்ள விரும்புகிறீர்கள்?");
                     break;
                 case 'media':
                     const payload = msg.media?.payload;
