@@ -386,6 +386,8 @@ export default function CustomVoiceAgent() {
                status === 'processing' ? 'Thinking...' : 'AI Speaking'}
             </span>
           </div>
+        </div>
+
         {/* Chat History Section */}
         <div className="card-pro p-8 bg-white/40 backdrop-blur-xl border border-slate-200/50 shadow-xl mt-12">
           <div className="flex items-center justify-between mb-6">
