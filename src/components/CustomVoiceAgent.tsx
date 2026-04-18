@@ -148,6 +148,22 @@ export default function CustomVoiceAgent() {
       setTranscript('');
       setAiText('');
       safeStartRecognition();
+
+      // Trigger Proactive Greeting
+      try {
+        const greetResp = await fetch('/api/voice/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ greeting: true }),
+        });
+        const greetData = await greetResp.json();
+        if (greetResp.ok) {
+          setAiText(greetData.text);
+          playAiVoice(greetData.audio);
+        }
+      } catch (e) {
+        console.error('Greeting Error:', e);
+      }
     } catch (err) {
       console.error('Mic access denied:', err);
       alert('Microphone access is required for the Tamil Voice AI.');
