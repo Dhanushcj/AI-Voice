@@ -52,14 +52,22 @@ export async function POST(request: Request) {
     return await generateVoiceResponse(aiResponse);
 
   } catch (error: any) {
-    console.error('API Service Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    console.error('API Service Fatal Error:', error);
+    return NextResponse.json({ 
+      error: error.message || 'Internal Server Error',
+      details: error.stack
+    }, { status: 500 });
   }
 }
 
 // Helper to generate OpenAI TTS response
 async function generateVoiceResponse(text: string) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) {
+    console.error('API Service Error: OPENAI_API_KEY is missing from environment variables!');
+    throw new Error('OPENAI_API_KEY is missing');
+  }
+
   console.log('API Service: Generating TTS for:', text);
 
   const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {

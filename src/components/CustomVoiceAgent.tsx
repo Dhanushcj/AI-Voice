@@ -124,10 +124,18 @@ export default function CustomVoiceAgent() {
 
   const startListening = async () => {
     try {
+      // 1. Initialize and UNLOCK Audio Context (MUST happen in click handler)
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+        console.log('Voice Engine: AudioContext Unlocked and Resumed');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Setup Audio Analyzer for volume visualization
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Setup Audio Analyzer
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
@@ -262,14 +270,39 @@ export default function CustomVoiceAgent() {
     }
   };
 
+  const testAudio = async () => {
+    console.log('Voice Engine: Running Manual Audio Test...');
+    const testPhrase = 'வணக்கம், ஒலி சோதனை வெற்றி'; // Hello, sound test success
+    try {
+      const resp = await fetch('/api/voice/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: testPhrase }),
+      });
+      const data = await resp.json();
+      if (resp.ok) playAiVoice(data.audio);
+    } catch (e) {
+      console.error('Test Audio Failed:', e);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center space-y-16 py-12 min-h-[600px] animate-in fade-in zoom-in duration-700">
       
       {/* Visual Header */}
       <div className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 mb-2">
-          <Globe className="w-3 h-3 text-indigo-500" />
-          <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Native Tamil Protocol v1.0</span>
+        <div className="flex justify-center gap-4 mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100">
+            <Globe className="w-3 h-3 text-indigo-500" />
+            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Native Tamil Protocol v1.0</span>
+          </div>
+          <button 
+            onClick={testAudio}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-colors cursor-pointer"
+          >
+            <Sparkles className="w-3 h-3 text-emerald-500" />
+            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Test Audio Engine</span>
+          </button>
         </div>
         <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Tamil AI Voice Experience</h2>
         <p className="text-slate-500 max-w-md mx-auto font-medium leading-relaxed">
