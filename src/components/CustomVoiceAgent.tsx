@@ -31,6 +31,9 @@ export default function CustomVoiceAgent() {
     }
   }, [messages]);
 
+  // Ref for silence detection timer
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     // Check for secure context
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
@@ -43,7 +46,7 @@ export default function CustomVoiceAgent() {
       console.log('Voice Engine: SpeechRecognition detected.');
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.lang = 'ta-IN';
-      recognitionRef.current.continuous = true; // Use continuous for better stability
+      recognitionRef.current.continuous = true; 
       recognitionRef.current.interimResults = true;
 
       recognitionRef.current.onstart = () => {
@@ -64,12 +67,25 @@ export default function CustomVoiceAgent() {
         }
 
         const currentTranscript = finalTranscript || interimTranscript;
-        console.log('Voice Engine: Result updating:', currentTranscript);
-        setTranscript(currentTranscript);
+        if (currentTranscript.trim()) {
+           console.log('Voice Engine: Updating transcript ->', currentTranscript);
+           setTranscript(currentTranscript);
+
+           // Silence Detection Logic
+           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+           
+           silenceTimerRef.current = setTimeout(() => {
+             console.log('Voice Engine: Silence detected. Auto-triggering command.');
+             processVoiceCommand(currentTranscript);
+             setTranscript(''); // Clear for next phrase
+           }, 1500); // 1.5 seconds of silence
+        }
         
         if (finalTranscript) {
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
           console.log('Voice Engine: Confirmed final phrase:', finalTranscript);
           processVoiceCommand(finalTranscript);
+          setTranscript('');
         }
       };
 

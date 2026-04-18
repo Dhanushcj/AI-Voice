@@ -40,14 +40,17 @@ wss.on('connection', (ws) => {
 
         deepgramConnection.on('Results', async (data) => {
             const transcript = data.channel.alternatives[0].transcript;
-            if (transcript && data.is_final) {
-                console.log(`User (Phone): ${transcript}`);
-                await handleAiFlow(transcript);
+            if (transcript) {
+                console.log(`Deepgram: [${data.is_final ? 'FINAL' : 'INTERIM'}] -> ${transcript}`);
+                if (data.is_final) {
+                    console.log(`User (Phone): ${transcript}`);
+                    await handleAiFlow(transcript);
+                }
             }
         });
 
         deepgramConnection.on('error', (err) => {
-            console.error('Deepgram Error:', err);
+            console.error('Deepgram Connection Error:', err);
         });
     };
 
@@ -80,12 +83,13 @@ wss.on('connection', (ws) => {
             });
 
             const buffer = Buffer.from(await response.arrayBuffer());
+            console.log(`OpenAI: Generated ${buffer.length} bytes of PCM audio.`);
             
-            // Resample from 24kHz to 8kHz (OpenAI PCM is 16-bit)
-            // 24000 / 8000 = 3. Take every 3rd sample.
+            // Resample from 24kHz to 8kHz
             const resampledBuffer = resamplePCM24to8(buffer);
+            console.log(`Resampler: Converted to ${resampledBuffer.length} bytes at 8kHz.`);
             
-            // Send to Exotel in chunks of ~160ms (1280 bytes at 8kHz 16-bit)
+            // Send to Exotel in chunks of ~160ms (1284 bytes at 8kHz 16-bit)
             const chunkSize = 1280;
             for (let i = 0; i < resampledBuffer.length; i += chunkSize) {
                 const chunk = resampledBuffer.slice(i, i + chunkSize);
@@ -115,9 +119,22 @@ wss.on('connection', (ws) => {
                 console.log(`Exotel: Stream started (Sid: ${streamSid})`);
                 break;
             case 'media':
-                if (deepgramConnection && deepgramConnection.getReadyState() === 1) {
-                    const audioPayload = Buffer.from(msg.media.payload, 'base64');
-                    deepgramConnection.send(audioPayload);
+                const payload = msg.media?.payload;
+                if (!payload) {
+                    console.warn('Exotel: Media event received without payload!');
+                    return;
+                }
+
+                if (deepgramConnection) {
+                    const state = deepgramConnection.getReadyState();
+                    if (state === 1) { // OPEN
+                        const audioPayload = Buffer.from(payload, 'base64');
+                        // Log chunk stats occasionally or if specifically requested (too quiet to log every chunk)
+                        // console.log(`Exotel -> Deepgram: ${audioPayload.length} bytes`);
+                        deepgramConnection.send(audioPayload);
+                    } else {
+                        console.warn(`Exotel: Deepgram not ready (State: ${state}). Buffering or connection issue?`);
+                    }
                 }
                 break;
             case 'stop':
