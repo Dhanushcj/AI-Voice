@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import VoiceOrb from './VoiceOrb';
-import { Mic, MicOff, Volume2, Globe, Sparkles, MessageSquare, Clock, Bot, User } from 'lucide-react';
+import { Mic, MicOff, Volume2, Globe, Sparkles, MessageSquare, Clock, Bot, User, Send } from 'lucide-react';
 
 export default function CustomVoiceAgent() {
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
@@ -10,6 +10,7 @@ export default function CustomVoiceAgent() {
   const [transcript, setTranscript] = useState('');
   const [aiText, setAiText] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string, time: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
   
   const recognitionRef = useRef<any>(null);
   const isRecognitionActive = useRef(false);
@@ -195,6 +196,22 @@ export default function CustomVoiceAgent() {
     setStatus('idle');
     recognitionRef.current?.stop();
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+  };
+
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    
+    // Unlock audio context if needed
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+
+    processVoiceCommand(chatInput);
+    setChatInput('');
   };
 
   const processVoiceCommand = async (text: string) => {
@@ -440,6 +457,26 @@ export default function CustomVoiceAgent() {
               ))
             )}
           </div>
+
+          {/* Chat Input Fallback */}
+          <form 
+            onSubmit={handleChatSubmit}
+            className="mt-6 flex gap-3 p-2 bg-slate-900 shadow-2xl border border-slate-700/50"
+          >
+            <input 
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="உங்களைப் பற்றி சொல்லுங்கள் அல்லது எதாவது கேளுங்கள்..."
+              className="flex-1 bg-transparent px-4 py-3 text-white text-sm font-bold placeholder:text-slate-500 focus:outline-none"
+            />
+            <button 
+              type="submit"
+              className="bg-indigo-500 hover:bg-indigo-600 p-3 flex items-center justify-center transition-all active:scale-95 group"
+            >
+              <Send className="w-5 h-5 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </button>
+          </form>
         </div>
       </div>
     </div>
