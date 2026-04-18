@@ -60,7 +60,7 @@ wss.on('connection', (ws) => {
     const handleAiFlow = async (text) => {
         try {
             console.log('Gemini: Thinking...');
-            const prompt = `You are a helpful and professional AI assistant. Your primary language is Tamil. Always respond in natural-sounding Tamil. Keep your responses concise (1-2 sentences). \n\nUser: ${text}`;
+            const prompt = `You are a highly intelligent, helpful, and professional AI assistant. Your primary language is Tamil. Always respond in clear, detailed, and natural-sounding Tamil. Explain concepts fully and provide comprehensive answers when requested. Do not restrict yourself to short sentences. \n\nUser: ${text}`;
             const result = await model.generateContent(prompt);
             const aiReply = result.response.text();
             console.log(`AI Reply: ${aiReply}`);

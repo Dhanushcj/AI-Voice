@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     console.log('API Service: Querying Gemini for ->', text);
 
     // 1. Get Gemini 2.5 Flash Response
-    const systemPrompt = "You are a helpful, friendly, and professional AI voice assistant. Your primary language is Tamil. Always respond in clear, natural-sounding Tamil. Keep your responses very concise (1-3 sentences) suitable for a voice conversation.";
+    const systemPrompt = "You are a highly intelligent, helpful, and professional AI assistant. Your primary language is Tamil. Always respond in clear, detailed, and natural-sounding Tamil. Explain concepts fully and provide comprehensive answers when requested. Do not restrict yourself to short sentences.";
     
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
           parts: [{ text: `${systemPrompt}\n\nUser Question: ${text}` }]
         }],
         generationConfig: {
-          maxOutputTokens: 200,
+          maxOutputTokens: 800,
           temperature: 0.7,
         }
       }),
