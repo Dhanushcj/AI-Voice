@@ -181,7 +181,7 @@ export default function CustomVoiceAgent() {
         if (greetResp.ok) {
           setAiText(greetData.text);
           addMessage('ai', greetData.text);
-          playAiVoice(greetData.audio);
+          playNativeVoice(greetData.text);
         }
       } catch (e) {
         console.error('Greeting Error:', e);
@@ -202,14 +202,6 @@ export default function CustomVoiceAgent() {
     e.preventDefault();
     if (!chatInput.trim()) return;
     
-    // Unlock audio context if needed
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
-
     processVoiceCommand(chatInput);
     setChatInput('');
   };
@@ -234,12 +226,7 @@ export default function CustomVoiceAgent() {
         console.log('Voice Engine: AI Response received successfully.');
         setAiText(data.text);
         addMessage('ai', data.text);
-        if (data.audio) {
-          playAiVoice(data.audio);
-        } else {
-          console.warn('Voice Engine: No audio data returned from API.');
-          setStatus('idle');
-        }
+        playNativeVoice(data.text);
       } else {
         console.error('Voice Engine: API Response Error:', data.error);
         setStatus('idle');
@@ -250,56 +237,36 @@ export default function CustomVoiceAgent() {
     }
   };
 
-  const playAiVoice = async (audioBase64: string) => {
-    console.log('Voice Engine: Starting Web Audio playback sequence...');
-    setStatus('speaking');
+  const playNativeVoice = (text: string) => {
+    console.log('Voice Engine: Starting Native Speech Synthesis...', text);
     
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
+    // Stop any current speech
+    window.speechSynthesis.cancel();
 
-      // Resume context in case it was suspended
-      if (audioContextRef.current.state === 'suspended') {
-        console.log('Voice Engine: Resuming suspended AudioContext...');
-        await audioContextRef.current.resume();
-      }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ta-IN';
+    
+    // Select a Tamil voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const tamilVoice = voices.find(v => v.lang.startsWith('ta')) || voices[0];
+    if (tamilVoice) utterance.voice = tamilVoice;
 
-      // Convert Base64 to ArrayBuffer
-      const base64Content = audioBase64.split(',')[1];
-      const binaryString = window.atob(base64Content);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      console.log('Voice Engine: Decoding audio data...');
-      const audioBuffer = await audioContextRef.current.decodeAudioData(bytes.buffer);
-      
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      
-      // Connect to destination and analyzer for waveform visuals
-      if (analyserRef.current) {
-        source.connect(analyserRef.current);
-        analyserRef.current.connect(audioContextRef.current.destination);
-      } else {
-        source.connect(audioContextRef.current.destination);
-      }
+    utterance.onstart = () => {
+      console.log('Voice Engine: Native Speech Started');
+      setStatus('speaking');
+    };
 
-      source.onended = () => {
-        console.log('Voice Engine: Playback finished.');
-        setStatus('idle');
-      };
-
-      source.start(0);
-      console.log('Voice Engine: Playback started via Web Audio API.');
-
-    } catch (e) {
-      console.error('Voice Engine: Web Audio Playback Failed:', e);
+    utterance.onend = () => {
+      console.log('Voice Engine: Native Speech Finished');
       setStatus('idle');
-    }
+    };
+
+    utterance.onerror = (e) => {
+      console.error('Voice Engine: Native Speech Error:', e);
+      setStatus('idle');
+    };
+
+    window.speechSynthesis.speak(utterance);
   };
 
   const testAudio = async () => {
@@ -312,7 +279,7 @@ export default function CustomVoiceAgent() {
         body: JSON.stringify({ text: testPhrase }),
       });
       const data = await resp.json();
-      if (resp.ok) playAiVoice(data.audio);
+      if (resp.ok) playNativeVoice(data.text);
     } catch (e) {
       console.error('Test Audio Failed:', e);
     }

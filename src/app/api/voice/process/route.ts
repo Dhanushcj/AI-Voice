@@ -3,53 +3,53 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const { text, greeting } = await request.json();
-    
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+    if (!GEMINI_API_KEY) {
+      console.error('API Service Error: GEMINI_API_KEY is missing!');
+      throw new Error('GEMINI_API_KEY is missing');
+    }
+
     // Handle proactive greeting
     if (greeting) {
-      console.log('API Service: Generating proactive greeting...');
-      const welcomeText = "வணக்கம்! நான் உங்களுக்கு இன்று எப்படி உதவ முடியும்? எதைப் பற்றி தெரிந்து கொள்ள விரும்புகிறீர்கள்?";
-      return await generateVoiceResponse(welcomeText);
+      console.log('API Service: Returning proactive greeting...');
+      return NextResponse.json({ text: "வணக்கம்! நான் உங்களுக்கு இன்று எப்படி உதவ முடியும்? எதைப் பற்றி தெரிந்து கொள்ள விரும்புகிறீர்கள்?" });
     }
 
-    console.log('API Service: Received voice request:', text);
-    if (!text) {
-      return NextResponse.json({ error: 'No text provided' }, { status: 400 });
-    }
+    console.log('API Service: Querying Gemini for ->', text);
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-    // 1. Get LLM Response in Tamil
-    console.log('API Service: Querying OpenAI...');
-    const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
+    // 1. Get Gemini 1.5 Flash Response
+    const systemPrompt = "You are a helpful, friendly, and professional AI voice assistant. Your primary language is Tamil. Always respond in clear, natural-sounding Tamil. Keep your responses very concise (1-3 sentences) suitable for a voice conversation.";
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful, friendly, and professional AI voice assistant. Your primary language is Tamil. Always respond in clear, natural-sounding Tamil. Keep your responses very concise (1-3 sentences) suitable for a voice conversation."
-          },
-          {
-            role: "user",
-            content: text
-          }
-        ],
+        contents: [{
+          parts: [{ text: `${systemPrompt}\n\nUser Question: ${text}` }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 200,
+          temperature: 0.7,
+        }
       }),
     });
 
-    const aiData = await aiResp.json();
+    const data = await response.json();
     
-    if (aiData.error) {
-      console.error('API Service: OpenAI Error:', aiData.error);
-      throw new Error(`OpenAI Error: ${aiData.error.message}`);
+    if (!response.ok) {
+      console.error('API Service: Gemini Error:', data);
+      throw new Error(`Gemini API Error: ${data.error?.message || 'Failed'}`);
     }
-    
-    const aiResponse = aiData.choices[0].message.content;
-    return await generateVoiceResponse(aiResponse);
+
+    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "மன்னிக்கவும், என்னால் பதிலளிக்க முடியவில்லை.";
+    console.log('API Service: Gemini Response:', aiResponse);
+
+    return NextResponse.json({
+      text: aiResponse.trim()
+    });
 
   } catch (error: any) {
     console.error('API Service Fatal Error:', error);
@@ -58,40 +58,4 @@ export async function POST(request: Request) {
       details: error.stack
     }, { status: 500 });
   }
-}
-
-// Helper to generate OpenAI TTS response
-async function generateVoiceResponse(text: string) {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_API_KEY) {
-    console.error('API Service Error: OPENAI_API_KEY is missing from environment variables!');
-    throw new Error('OPENAI_API_KEY is missing');
-  }
-
-  console.log('API Service: Generating TTS for:', text);
-
-  const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: "tts-1",
-      voice: "nova",
-      input: text,
-    }),
-  });
-
-  if (!ttsResponse.ok) {
-    throw new Error('TTS Generation Failed');
-  }
-
-  const audioBuffer = await ttsResponse.arrayBuffer();
-  const base64Audio = Buffer.from(audioBuffer).toString('base64');
-
-  return NextResponse.json({
-    text: text,
-    audio: `data:audio/mpeg;base64,${base64Audio}`
-  });
 }
