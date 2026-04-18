@@ -245,11 +245,29 @@ export default function CustomVoiceAgent() {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ta-IN';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
     
-    // Select a Tamil voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const tamilVoice = voices.find(v => v.lang.startsWith('ta')) || voices[0];
-    if (tamilVoice) utterance.voice = tamilVoice;
+    const setVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      // Prioritize Google voices or specific Tamil locales for better quality
+      const tamilVoice = voices.find(v => v.lang === 'ta-IN' && v.name.includes('Google')) || 
+                        voices.find(v => v.lang === 'ta-IN') ||
+                        voices.find(v => v.lang.startsWith('ta')) ||
+                        voices[0];
+      
+      if (tamilVoice) {
+        console.log('Voice Engine: Selected Voice ->', tamilVoice.name);
+        utterance.voice = tamilVoice;
+      }
+    };
+
+    setVoice();
+    // Chrome/Edge sometimes load voices asynchronously
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = setVoice;
+    }
 
     utterance.onstart = () => {
       console.log('Voice Engine: Native Speech Started');
