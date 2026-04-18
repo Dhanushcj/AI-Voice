@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const { text } = await request.json();
+    console.log('API Service: Received voice request:', text);
 
     if (!text) {
       return NextResponse.json({ error: 'No text provided' }, { status: 400 });
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
     // 1. Get LLM Response in Tamil via fetch (Zero-dependency approach)
+    console.log('API Service: Querying OpenAI...');
     const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -35,12 +37,15 @@ export async function POST(request: Request) {
     const aiData = await aiResp.json();
     
     if (aiData.error) {
+      console.error('API Service: OpenAI Error:', aiData.error);
       throw new Error(`OpenAI Error: ${aiData.error.message}`);
     }
     
     const aiResponse = aiData.choices[0].message.content;
+    console.log('API Service: AI Response text:', aiResponse);
 
     // 2. Convert to Speech using ElevenLabs
+    console.log('API Service: Querying ElevenLabs...');
     const ELEVENLABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
     const VOICE_ID = "pNInz6obpgnu9PAsWsyA"; // Brian (High-quality Multilingual)
     
@@ -65,10 +70,12 @@ export async function POST(request: Request) {
 
     if (!ttsResponse.ok) {
       const errorData = await ttsResponse.json();
+      console.error('API Service: ElevenLabs Error:', errorData);
       throw new Error(`ElevenLabs Error: ${errorData.detail?.message || 'TTS Failed'}`);
     }
 
     const audioBuffer = await ttsResponse.arrayBuffer();
+    console.log('API Service: TTS Audio generated. Size:', audioBuffer.byteLength, 'bytes');
     const base64Audio = Buffer.from(audioBuffer).toString('base64');
 
     return NextResponse.json({
@@ -77,7 +84,7 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('Voice Process Error:', error);
+    console.error('API Service Error:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
