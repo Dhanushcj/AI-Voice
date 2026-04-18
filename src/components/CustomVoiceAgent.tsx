@@ -19,6 +19,13 @@ export default function CustomVoiceAgent() {
   const animationFrameRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const cloudAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Helper to check for native Tamil support
+  const hasNativeTamilVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    return voices.some(v => v.lang.startsWith('ta'));
+  };
 
   const addMessage = (role: 'user' | 'ai', text: string) => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -191,13 +198,21 @@ export default function CustomVoiceAgent() {
         const greetResp = await fetch('/api/voice/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ greeting: true }),
+          body: JSON.stringify({ 
+            greeting: true,
+            includeAudio: !hasNativeTamilVoice() 
+          }),
         });
         const greetData = await greetResp.json();
         if (greetResp.ok) {
           setAiText(greetData.text);
           addMessage('ai', greetData.text);
-          playNativeVoice(greetData.text);
+          
+          if (greetData.audio) {
+            playCloudVoice(greetData.audio);
+          } else {
+            playNativeVoice(greetData.text);
+          }
         }
       } catch (e) {
         console.error('Greeting Error:', e);
@@ -233,7 +248,10 @@ export default function CustomVoiceAgent() {
       const response = await fetch('/api/voice/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ 
+          text,
+          includeAudio: !hasNativeTamilVoice()
+        }),
       });
 
       const data = await response.json();
@@ -242,7 +260,12 @@ export default function CustomVoiceAgent() {
         console.log('Voice Engine: AI Response received successfully.');
         setAiText(data.text);
         addMessage('ai', data.text);
-        playNativeVoice(data.text);
+        
+        if (data.audio) {
+          playCloudVoice(data.audio);
+        } else {
+          playNativeVoice(data.text);
+        }
       } else {
         console.error('Voice Engine: API Response Error:', data.error);
         if (data.error?.includes('missing')) {
@@ -276,6 +299,36 @@ export default function CustomVoiceAgent() {
       window.speechSynthesis.onvoiceschanged = logVoices;
     }
   }, []);
+
+  const playCloudVoice = (base64Audio: string) => {
+    console.log('Voice Engine: ☁️ Playing high-fidelity Cloud TTS audio...');
+    if (cloudAudioRef.current) {
+      cloudAudioRef.current.pause();
+      cloudAudioRef.current = null;
+    }
+
+    const audioUrl = `data:audio/mp3;base64,${base64Audio}`;
+    const audio = new Audio(audioUrl);
+    cloudAudioRef.current = audio;
+
+    audio.onplay = () => {
+      console.log('Voice Engine: ▶️ Cloud audio started');
+      setStatus('speaking');
+    };
+
+    audio.onended = () => {
+      console.log('Voice Engine: ⏹️ Cloud audio finished');
+      setStatus('idle');
+      cloudAudioRef.current = null;
+    };
+
+    audio.onerror = (e) => {
+      console.error('Voice Engine: 🛑 Cloud audio error:', e);
+      setStatus('idle');
+    };
+
+    audio.play();
+  };
 
   const playNativeVoice = (text: string) => {
     if (!text) return;
