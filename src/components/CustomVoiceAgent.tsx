@@ -300,34 +300,69 @@ export default function CustomVoiceAgent() {
     }
   }, []);
 
-  const playCloudVoice = (base64Audio: string) => {
-    console.log('Voice Engine: ☁️ Playing high-fidelity Cloud TTS audio...');
+  const playCloudVoice = (text: string) => {
+    console.log('Voice Engine: ☁️ Starting Zero-Cost Google Voice pipeline...');
+    
     if (cloudAudioRef.current) {
       cloudAudioRef.current.pause();
       cloudAudioRef.current = null;
     }
 
-    const audioUrl = `data:audio/mp3;base64,${base64Audio}`;
-    const audio = new Audio(audioUrl);
-    cloudAudioRef.current = audio;
+    // Split text into chunks (Google TTS limit is ~200 chars)
+    const chunks: string[] = [];
+    const maxLen = 180;
+    
+    // Split by common Tamil punctuation/boundaries to keep flow natural
+    const sentences = text.split(/([.,!?;])/g);
+    let currentChunk = '';
+    
+    for (let i = 0; i < sentences.length; i++) {
+      if ((currentChunk + sentences[i]).length > maxLen) {
+        if (currentChunk.trim()) chunks.push(currentChunk.trim());
+        currentChunk = sentences[i];
+      } else {
+        currentChunk += sentences[i];
+      }
+    }
+    if (currentChunk.trim()) chunks.push(currentChunk.trim());
 
-    audio.onplay = () => {
-      console.log('Voice Engine: ▶️ Cloud audio started');
-      setStatus('speaking');
+    let chunkIndex = 0;
+
+    const playNextChunk = () => {
+      if (chunkIndex >= chunks.length) {
+        console.log('Voice Engine: ⏹️ All voice chunks finished');
+        setStatus('idle');
+        return;
+      }
+
+      const chunk = chunks[chunkIndex];
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=ta&client=tw-ob`;
+      
+      const audio = new Audio(url);
+      cloudAudioRef.current = audio;
+
+      audio.onplay = () => {
+        console.log(`Voice Engine: ▶️ Playing chunk ${chunkIndex + 1}/${chunks.length}`);
+        setStatus('speaking');
+      };
+
+      audio.onended = () => {
+        chunkIndex++;
+        playNextChunk();
+      };
+
+      audio.onerror = (e) => {
+        console.error('Voice Engine: 🛑 Google TTS Error:', e);
+        setStatus('idle');
+      };
+
+      audio.play().catch(err => {
+        console.warn('Voice Engine: Playback blocked (interaction required):', err);
+        setStatus('idle');
+      });
     };
 
-    audio.onended = () => {
-      console.log('Voice Engine: ⏹️ Cloud audio finished');
-      setStatus('idle');
-      cloudAudioRef.current = null;
-    };
-
-    audio.onerror = (e) => {
-      console.error('Voice Engine: 🛑 Cloud audio error:', e);
-      setStatus('idle');
-    };
-
-    audio.play();
+    playNextChunk();
   };
 
   const playNativeVoice = (text: string) => {

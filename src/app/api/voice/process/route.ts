@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(request: Request) {
   try {
-    const { text, greeting, includeAudio } = await request.json();
+    const { text, greeting } = await request.json();
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
     if (!GEMINI_API_KEY) {
@@ -19,22 +14,7 @@ export async function POST(request: Request) {
     if (greeting) {
       const greetingText = "வணக்கம்! நான் உங்களுக்கு இன்று எப்படி உதவ முடியும்? எதைப் பற்றி தெரிந்து கொள்ள விரும்புகிறீர்கள்?";
       console.log('API Service: Returning proactive greeting...');
-      
-      let audioResult = null;
-      if (includeAudio) {
-        const mp3 = await openai.audio.speech.create({
-          model: "tts-1",
-          voice: "nova",
-          input: greetingText,
-        });
-        const buffer = Buffer.from(await mp3.arrayBuffer());
-        audioResult = buffer.toString('base64');
-      }
-
-      return NextResponse.json({ 
-        text: greetingText,
-        audio: audioResult
-      });
+      return NextResponse.json({ text: greetingText });
     }
 
     console.log('API Service: Querying Gemini for ->', text);
@@ -69,27 +49,8 @@ export async function POST(request: Request) {
     const trimmedAiResponse = aiResponse.trim();
     console.log('API Service: Gemini Response:', trimmedAiResponse);
 
-    // 2. Optional: Generate Cloud TTS Fallback
-    let audioBase64 = null;
-    if (includeAudio) {
-      console.log('API Service: Generating Cloud TTS fallback audio...');
-      try {
-        const mp3 = await openai.audio.speech.create({
-          model: "tts-1",
-          voice: "nova",
-          input: trimmedAiResponse,
-        });
-        const buffer = Buffer.from(await mp3.arrayBuffer());
-        audioBase64 = buffer.toString('base64');
-      } catch (ttsErr) {
-        console.error('API Service: TTS Generation Failed:', ttsErr);
-        // We don't throw here to ensure the text still gets back to the user
-      }
-    }
-
     return NextResponse.json({
-      text: trimmedAiResponse,
-      audio: audioBase64
+      text: trimmedAiResponse
     });
 
   } catch (error: any) {
