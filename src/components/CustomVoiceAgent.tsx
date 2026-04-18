@@ -210,34 +210,56 @@ export default function CustomVoiceAgent() {
     }
   };
 
-  const playAiVoice = (audioBase64: string) => {
-    console.log('Voice Engine: Initializing audio playback...');
+  const playAiVoice = async (audioBase64: string) => {
+    console.log('Voice Engine: Starting Web Audio playback sequence...');
     setStatus('speaking');
     
-    if (audioRef.current) {
-      audioRef.current.pause();
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+
+      // Resume context in case it was suspended
+      if (audioContextRef.current.state === 'suspended') {
+        console.log('Voice Engine: Resuming suspended AudioContext...');
+        await audioContextRef.current.resume();
+      }
+
+      // Convert Base64 to ArrayBuffer
+      const base64Content = audioBase64.split(',')[1];
+      const binaryString = window.atob(base64Content);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      console.log('Voice Engine: Decoding audio data...');
+      const audioBuffer = await audioContextRef.current.decodeAudioData(bytes.buffer);
+      
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      
+      // Connect to destination and analyzer for waveform visuals
+      if (analyserRef.current) {
+        source.connect(analyserRef.current);
+        analyserRef.current.connect(audioContextRef.current.destination);
+      } else {
+        source.connect(audioContextRef.current.destination);
+      }
+
+      source.onended = () => {
+        console.log('Voice Engine: Playback finished.');
+        setStatus('idle');
+      };
+
+      source.start(0);
+      console.log('Voice Engine: Playback started via Web Audio API.');
+
+    } catch (e) {
+      console.error('Voice Engine: Web Audio Playback Failed:', e);
+      setStatus('idle');
     }
-    
-    audioRef.current = new Audio(audioBase64);
-    
-    audioRef.current.onplay = () => {
-      console.log('Voice Engine: Audio playing.');
-    };
-
-    audioRef.current.onerror = (e) => {
-      console.error('Voice Engine: Audio playback error:', e);
-      setStatus('idle');
-    };
-
-    audioRef.current.onended = () => {
-      console.log('Voice Engine: Audio finished.');
-      setStatus('idle');
-    };
-
-    audioRef.current.play().catch(e => {
-      console.error('Voice Engine: Playback failed (Interaction required?):', e);
-      setStatus('idle');
-    });
   };
 
   return (
