@@ -229,6 +229,11 @@ export default function CustomVoiceAgent() {
         playNativeVoice(data.text);
       } else {
         console.error('Voice Engine: API Response Error:', data.error);
+        if (data.error?.includes('missing')) {
+          setAiText('பின்னணி கட்டமைப்பு தேவை (Configuration Required): Please add GEMINI_API_KEY to your Vercel Environment Variables.');
+        } else {
+          setAiText('Algorithm Error: ' + (data.error || 'Unknown Error'));
+        }
         setStatus('idle');
       }
     } catch (err) {
