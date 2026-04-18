@@ -183,7 +183,7 @@ app.prepare().then(() => {
     };
 
     // Handle Incoming Exotel Binary Data
-    ws.on('message', (message) => {
+    ws.on('message', async (message) => {
         try {
             const msg = JSON.parse(message);
 
