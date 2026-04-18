@@ -39,19 +39,24 @@ export default function CustomVoiceAgent() {
       };
 
       recognitionRef.current.onresult = (event: any) => {
-        const current = event.resultIndex;
-        // Collect all results in continuous mode
-        let fullTranscript = '';
+        let interimTranscript = '';
+        let finalTranscript = '';
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          fullTranscript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
         }
+
+        const currentTranscript = finalTranscript || interimTranscript;
+        console.log('Voice Engine: Result updating:', currentTranscript);
+        setTranscript(currentTranscript);
         
-        setTranscript(fullTranscript);
-        
-        if (event.results[current].isFinal) {
-          console.log('Voice Engine: Final transcript:', fullTranscript);
-          // Wait slightly to ensure we captured everything
-          setTimeout(() => processVoiceCommand(fullTranscript), 500);
+        if (finalTranscript) {
+          console.log('Voice Engine: Confirmed final phrase:', finalTranscript);
+          processVoiceCommand(finalTranscript);
         }
       };
 
@@ -156,9 +161,11 @@ export default function CustomVoiceAgent() {
   };
 
   const processVoiceCommand = async (text: string) => {
+    if (!text || text.trim().length === 0) return;
+    
+    console.log('Voice Engine: Processing command ->', text);
     setStatus('processing');
-    recognitionRef.current?.stop();
-
+    
     try {
       const response = await fetch('/api/voice/process', {
         method: 'POST',
@@ -169,29 +176,52 @@ export default function CustomVoiceAgent() {
       const data = await response.json();
 
       if (response.ok) {
+        console.log('Voice Engine: AI Response received successfully.');
         setAiText(data.text);
-        playAiVoice(data.audio);
+        if (data.audio) {
+          playAiVoice(data.audio);
+        } else {
+          console.warn('Voice Engine: No audio data returned from API.');
+          setStatus('idle');
+        }
       } else {
-        console.error('API Error:', data.error);
+        console.error('Voice Engine: API Response Error:', data.error);
         setStatus('idle');
       }
     } catch (err) {
-      console.error('Process Error:', err);
+      console.error('Voice Engine: API Communication Error:', err);
       setStatus('idle');
     }
   };
 
   const playAiVoice = (audioBase64: string) => {
+    console.log('Voice Engine: Initializing audio playback...');
     setStatus('speaking');
+    
     if (audioRef.current) {
       audioRef.current.pause();
     }
     
     audioRef.current = new Audio(audioBase64);
-    audioRef.current.onended = () => {
+    
+    audioRef.current.onplay = () => {
+      console.log('Voice Engine: Audio playing.');
+    };
+
+    audioRef.current.onerror = (e) => {
+      console.error('Voice Engine: Audio playback error:', e);
       setStatus('idle');
     };
-    audioRef.current.play();
+
+    audioRef.current.onended = () => {
+      console.log('Voice Engine: Audio finished.');
+      setStatus('idle');
+    };
+
+    audioRef.current.play().catch(e => {
+      console.error('Voice Engine: Playback failed (Interaction required?):', e);
+      setStatus('idle');
+    });
   };
 
   return (

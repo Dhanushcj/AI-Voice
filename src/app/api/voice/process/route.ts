@@ -44,38 +44,30 @@ export async function POST(request: Request) {
     const aiResponse = aiData.choices[0].message.content;
     console.log('API Service: AI Response text:', aiResponse);
 
-    // 2. Convert to Speech using ElevenLabs
-    console.log('API Service: Querying ElevenLabs...');
-    const ELEVENLABS_API_KEY = process.env.ELEVEN_LABS_API_KEY;
-    const VOICE_ID = "pNInz6obpgnu9PAsWsyA"; // Brian (High-quality Multilingual)
+    // 2. Convert to Speech using OpenAI TTS
+    console.log('API Service: Querying OpenAI TTS...');
     
-    const ttsResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': ELEVENLABS_API_KEY!,
-        },
-        body: JSON.stringify({
-          text: aiResponse,
-          model_id: "eleven_multilingual_v2",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-          },
-        }),
-      }
-    );
+    const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "tts-1",
+        voice: "nova", // Nova is a clear, versatile voice
+        input: aiResponse,
+      }),
+    });
 
     if (!ttsResponse.ok) {
       const errorData = await ttsResponse.json();
-      console.error('API Service: ElevenLabs Error:', errorData);
-      throw new Error(`ElevenLabs Error: ${errorData.detail?.message || 'TTS Failed'}`);
+      console.error('API Service: OpenAI TTS Error:', errorData);
+      throw new Error(`OpenAI TTS Error: ${errorData.error?.message || 'TTS Failed'}`);
     }
 
     const audioBuffer = await ttsResponse.arrayBuffer();
-    console.log('API Service: TTS Audio generated. Size:', audioBuffer.byteLength, 'bytes');
+    console.log('API Service: OpenAI TTS Audio generated. Size:', audioBuffer.byteLength, 'bytes');
     const base64Audio = Buffer.from(audioBuffer).toString('base64');
 
     return NextResponse.json({
