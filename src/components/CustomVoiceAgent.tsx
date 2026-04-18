@@ -258,54 +258,74 @@ export default function CustomVoiceAgent() {
     }
   };
 
+  // Advanced Voice Discovery
+  useEffect(() => {
+    const logVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      console.log('Voice Engine: 🔊 System discovered', voices.length, 'voices.');
+      const tamilVoices = voices.filter(v => v.lang.startsWith('ta'));
+      if (tamilVoices.length > 0) {
+        console.log('Voice Engine: ✅ Tamil voices available:', tamilVoices.map(v => v.name));
+      } else {
+        console.warn('Voice Engine: ❌ NO Tamil voices found on this system! Falling back to default.');
+      }
+    };
+
+    logVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = logVoices;
+    }
+  }, []);
+
   const playNativeVoice = (text: string) => {
-    console.log('Voice Engine: Starting Native Speech Synthesis...', text);
+    if (!text) return;
+    console.log('Voice Engine: 💬 Attempting to speak:', text);
     
     // Stop any current speech
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ta-IN';
-    utterance.rate = 1.0;
+    utterance.rate = 1.1; // Slightly faster for natural Tamil
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
     
-    const setVoice = () => {
-      const voices = window.speechSynthesis.getVoices();
-      // Prioritize Google voices or specific Tamil locales for better quality
-      const tamilVoice = voices.find(v => v.lang === 'ta-IN' && v.name.includes('Google')) || 
-                        voices.find(v => v.lang === 'ta-IN') ||
-                        voices.find(v => v.lang.startsWith('ta')) ||
-                        voices[0];
-      
-      if (tamilVoice) {
-        console.log('Voice Engine: Selected Voice ->', tamilVoice.name);
-        utterance.voice = tamilVoice;
-      }
-    };
-
-    setVoice();
-    // Chrome/Edge sometimes load voices asynchronously
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-      window.speechSynthesis.onvoiceschanged = setVoice;
+    const voices = window.speechSynthesis.getVoices();
+    const tamilVoice = voices.find(v => v.lang === 'ta-IN' && (v.name.includes('Google') || v.name.includes('Neural'))) || 
+                      voices.find(v => v.lang === 'ta-IN') ||
+                      voices.find(v => v.lang.startsWith('ta')) ||
+                      voices[0];
+    
+    if (tamilVoice) {
+      console.log('Voice Engine: 🎙️ Using Voice:', tamilVoice.name, `(${tamilVoice.lang})`);
+      utterance.voice = tamilVoice;
+    } else {
+      console.warn('Voice Engine: ⚠️ No voices available to the browser yet.');
     }
 
     utterance.onstart = () => {
-      console.log('Voice Engine: Native Speech Started');
+      console.log('Voice Engine: ▶️ Audio playback started');
       setStatus('speaking');
     };
 
     utterance.onend = () => {
-      console.log('Voice Engine: Native Speech Finished');
+      console.log('Voice Engine: ⏹️ Audio playback finished');
       setStatus('idle');
     };
 
     utterance.onerror = (e) => {
-      console.error('Voice Engine: Native Speech Error:', e);
+      console.error('Voice Engine: 🛑 Playback Error:', e);
       setStatus('idle');
     };
 
     window.speechSynthesis.speak(utterance);
+    
+    // Check if it's actually speaking
+    setTimeout(() => {
+      if (!window.speechSynthesis.speaking && text.length > 0) {
+        console.error('Voice Engine: 🚨 Speech failed to start! Checks mute/volume or browser privacy settings.');
+      }
+    }, 100);
   };
 
   const testAudio = async () => {
