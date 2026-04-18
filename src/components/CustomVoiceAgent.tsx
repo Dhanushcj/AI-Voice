@@ -35,7 +35,80 @@ export default function CustomVoiceAgent() {
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
       alert('Security Warning: Speech recognition requires a secure (HTTPS) connection or localhost. Please check your URL.');
     }
-// ... [rest of useEffect logic remains]
+    // Initialize Web Speech API
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      console.log('Voice Engine: SpeechRecognition detected.');
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.lang = 'ta-IN';
+      recognitionRef.current.continuous = true; // Use continuous for better stability
+      recognitionRef.current.interimResults = true;
+
+      recognitionRef.current.onstart = () => {
+        console.log('Voice Engine: Recognition started (onstart)');
+        isRecognitionActive.current = true;
+      };
+
+      recognitionRef.current.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        const currentTranscript = finalTranscript || interimTranscript;
+        console.log('Voice Engine: Result updating:', currentTranscript);
+        setTranscript(currentTranscript);
+        
+        if (finalTranscript) {
+          console.log('Voice Engine: Confirmed final phrase:', finalTranscript);
+          processVoiceCommand(finalTranscript);
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        console.log('Voice Engine: Recognition ended (onend)');
+        isRecognitionActive.current = false;
+        
+        // Auto-restart if we are still in "listening" mode
+        if (status === 'listening') {
+          console.log('Voice Engine: Attempting auto-restart...');
+          setTimeout(() => safeStartRecognition(), 300);
+        }
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        isRecognitionActive.current = false;
+        
+        // Handle specific errors
+        if (event.error === 'no-speech') {
+          // Ignore no-speech noise to keep console clean
+          return;
+        }
+
+        console.error('Voice Engine Error (onerror):', event.error);
+        
+        if (event.error === 'network') {
+          console.warn('Voice Engine: Network issue detected. Backing off for 2s...');
+          setTimeout(() => {
+            if (status === 'listening') safeStartRecognition();
+          }, 2000);
+          return;
+        }
+
+        if (event.error === 'not-allowed') {
+          alert('Microphone permission denied. Please allow mic access in your browser settings.');
+        }
+        
+        if (event.error !== 'aborted') {
+          setStatus('idle');
+        }
       };
     } else {
       console.error('Voice Engine: Web Speech API (SpeechRecognition) NOT supported in this browser.');
