@@ -78,6 +78,13 @@ export default function CustomVoiceAgent() {
            console.log('Voice Engine: Updating transcript ->', currentTranscript);
            setTranscript(currentTranscript);
 
+           // Interruption Logic: If the user speaks, stop AI playback
+           if (status === 'speaking' && cloudAudioRef.current) {
+             console.log('Voice Engine: Interruption detected. Stopping AI voice.');
+             cloudAudioRef.current.pause();
+             cloudAudioRef.current = null;
+           }
+
            // Silence Detection Logic
            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
            

@@ -62,6 +62,9 @@ app.prepare().then(() => {
 
     let streamSid = null;
     let dgSocket = null;
+    let shouldInterrupt = false;
+    let activeSpeechId = 0;
+    let isAiSpeaking = false;
 
     // Initialize Raw Deepgram WebSocket
     const setupDeepgramRaw = () => {
@@ -83,6 +86,13 @@ app.prepare().then(() => {
                 
                 if (transcript) {
                     console.log(`Deepgram: [${isFinal ? 'FINAL' : 'INTERIM'}] -> ${transcript}`);
+                    
+                    // Interruption Logic: If the user speaks while AI is speaking, stop the AI
+                    if (isAiSpeaking) {
+                        console.log('Interruption: User spoke. Stopping AI speech...');
+                        shouldInterrupt = true;
+                    }
+
                     if (isFinal) {
                         console.log(`User (Phone): ${transcript}`);
                         await handleAiFlow(transcript);
@@ -118,6 +128,9 @@ app.prepare().then(() => {
             if (!text || text.trim().length === 0) return;
             
             console.log('Google TTS: Preparing Zero-Cost Voice pipeline...');
+            const speechId = ++activeSpeechId;
+            shouldInterrupt = false;
+            isAiSpeaking = true;
             
             // Smarter chunking: Split by Tamil punctuation first, then by length
             const chunks = [];
@@ -135,6 +148,7 @@ app.prepare().then(() => {
             if (currentChunk.trim()) chunks.push(currentChunk.trim());
 
             for (const chunk of chunks) {
+                if (shouldInterrupt || speechId !== activeSpeechId) break;
                 if (!chunk.trim()) continue;
                 console.log(`Google TTS: Processing chunk (${chunk.length} chars)...`);
 
@@ -167,6 +181,7 @@ app.prepare().then(() => {
                 // Send PCM to Exotel
                 const chunkSize = 1280;
                 for (let i = 0; i < pcmBuffer.length; i += chunkSize) {
+                    if (shouldInterrupt || speechId !== activeSpeechId) break;
                     const chunkData = pcmBuffer.slice(i, i + chunkSize);
                     if (ws.readyState === OPEN) {
                         ws.send(JSON.stringify({
