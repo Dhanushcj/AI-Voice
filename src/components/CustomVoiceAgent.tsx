@@ -301,6 +301,8 @@ export default function CustomVoiceAgent() {
   }, []);
 
   const playCloudVoice = (text: string) => {
+    if (!text || text.trim().length === 0) return;
+    
     console.log('Voice Engine: ☁️ Starting Zero-Cost Google Voice pipeline...');
     
     if (cloudAudioRef.current) {
@@ -308,20 +310,18 @@ export default function CustomVoiceAgent() {
       cloudAudioRef.current = null;
     }
 
-    // Split text into chunks (Google TTS limit is ~200 chars)
+    // Advanced Chunking: Split by Tamil punctuation/sentences
+    const rawChunks = text.split(/([.,!?;])|[\n\r]/g).filter(Boolean);
     const chunks: string[] = [];
     const maxLen = 180;
     
-    // Split by common Tamil punctuation/boundaries to keep flow natural
-    const sentences = text.split(/([.,!?;])/g);
     let currentChunk = '';
-    
-    for (let i = 0; i < sentences.length; i++) {
-      if ((currentChunk + sentences[i]).length > maxLen) {
+    for (const part of rawChunks) {
+      if ((currentChunk + part).length > maxLen) {
         if (currentChunk.trim()) chunks.push(currentChunk.trim());
-        currentChunk = sentences[i];
+        currentChunk = part;
       } else {
-        currentChunk += sentences[i];
+        currentChunk += part;
       }
     }
     if (currentChunk.trim()) chunks.push(currentChunk.trim());
@@ -342,7 +342,7 @@ export default function CustomVoiceAgent() {
       cloudAudioRef.current = audio;
 
       audio.onplay = () => {
-        console.log(`Voice Engine: ▶️ Playing chunk ${chunkIndex + 1}/${chunks.length}`);
+        console.log(`Voice Engine: ▶️ Playing chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} chars)`);
         setStatus('speaking');
       };
 
@@ -350,10 +350,12 @@ export default function CustomVoiceAgent() {
         chunkIndex++;
         playNextChunk();
       };
-
+      
       audio.onerror = (e) => {
         console.error('Voice Engine: 🛑 Google TTS Error:', e);
-        setStatus('idle');
+        // Try skipping this chunk if it failed
+        chunkIndex++;
+        playNextChunk();
       };
 
       audio.play().catch(err => {
@@ -509,13 +511,19 @@ export default function CustomVoiceAgent() {
             <div className="absolute -inset-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-10 blur-xl transition-opacity animate-pulse" />
           </button>
           
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full border border-slate-200 shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-none">
-              {status === 'idle' ? 'Ready to Assist' : 
-               status === 'listening' ? 'Processing Voice' : 
-               status === 'processing' ? 'Thinking...' : 'AI Speaking'}
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full border border-slate-200 shadow-inner">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-none">
+                {status === 'idle' ? 'Ready to Assist' : 
+                 status === 'listening' ? 'Processing Voice' : 
+                 status === 'processing' ? 'Thinking...' : 'AI Speaking'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-full border border-emerald-100 shadow-sm animate-pulse">
+              <Zap className="w-3 h-3 text-emerald-500" />
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none">Zero-Cost Powered</span>
+            </div>
           </div>
         </div>
 

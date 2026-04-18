@@ -33,13 +33,25 @@ app.prepare().then(() => {
     }
   });
 
-  // Initialize WebSocket Server on the same HTTP server
-  const wss = new WebSocketServer({ server });
+  // Initialize WebSocket Server in "noServer" mode to prevent intercepting Next.js HMR
+  const wss = new WebSocketServer({ noServer: true });
 
   console.log(`\n--- ✨ Unified Voice Server Starting ---`);
   console.log(`🌐 Dashboard: http://${hostname}:${port}`);
-  console.log(`🎙️ Exotel WSS: wss://${hostname}:${port}`);
+  console.log(`🎙️ Exotel WSS: wss://${hostname}:${port}/api/voice/telephony`);
   console.log(`-----------------------------------------\n`);
+
+  // Handle manual upgrade to avoid breaking Next.js HMR
+  server.on('upgrade', (request, socket, head) => {
+    const { pathname } = parse(request.url);
+
+    if (pathname === '/api/voice/telephony') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+    // If it's not our telephony path, we do nothing and let Next.js handle it
+  });
 
   wss.on('connection', (ws, req) => {
     const parsedUrl = parse(req.url, true);
@@ -100,14 +112,31 @@ app.prepare().then(() => {
         }
     };
 
-    // Zero-Cost TTS (Google Translate)
+    // Zero-Cost TTS (Google Translate) with improved chunking
     const speakToCustomer = async (text) => {
         try {
-            console.log('Google TTS: Fetching Free Voice...');
-            const chunks = text.match(/.{1,180}(?:\s|$|[.,!?;])/g) || [text];
+            if (!text || text.trim().length === 0) return;
             
+            console.log('Google TTS: Preparing Zero-Cost Voice pipeline...');
+            
+            // Smarter chunking: Split by Tamil punctuation first, then by length
+            const chunks = [];
+            const rawChunks = text.split(/([.,!?;])|[\n\r]/g).filter(Boolean);
+            
+            let currentChunk = "";
+            for (const part of rawChunks) {
+                if ((currentChunk + part).length > 180) {
+                    if (currentChunk.trim()) chunks.push(currentChunk.trim());
+                    currentChunk = part;
+                } else {
+                    currentChunk += part;
+                }
+            }
+            if (currentChunk.trim()) chunks.push(currentChunk.trim());
+
             for (const chunk of chunks) {
                 if (!chunk.trim()) continue;
+                console.log(`Google TTS: Processing chunk (${chunk.length} chars)...`);
 
                 const url = googleTTS.getAudioUrl(chunk, {
                     lang: 'ta',
@@ -162,8 +191,8 @@ app.prepare().then(() => {
                 case 'start':
                     streamSid = msg.stream_sid;
                     console.log(`Exotel: Unified Stream started (Sid: ${streamSid})`);
-                    // Immediate proactive greeting
-                    await speakToCustomer("வணக்கம்! நான் உங்களுக்கு இன்று எப்படி உதவ முடியும்? எதைப் பற்றி தெரிந்து கொள்ள விரும்புகிறீர்கள்?");
+                    // Immediate proactive greeting in Tamil
+                    await speakToCustomer("வணக்கம்! நான் உங்கள் தமிழ் குரல் உதவியாளர். உங்களுக்கு இன்று எப்படி உதவ முடியும்?");
                     break;
                 case 'media':
                     const payload = msg.media?.payload;
