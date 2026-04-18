@@ -17,9 +17,9 @@ const port = 3001;
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-// Initialize AI
+// Initialize AI with stable model for production
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
@@ -56,9 +56,9 @@ app.prepare().then(() => {
   wss.on('connection', (ws, req) => {
     const parsedUrl = parse(req.url, true);
     
-    // Check if this is an Exotel stream connection
-    // Usually Exotel connects to the root or a specific path
-    console.log(`WSS: New connection from ${req.socket.remoteAddress}`);
+    // Log connection details for Render troubleshooting
+    console.log(`[WSS] 🔌 New connection from ${req.socket.remoteAddress}`);
+    console.log(`[WSS] 🛤️ Path: ${parsedUrl.pathname}`);
 
     let streamSid = null;
     let dgSocket = null;
@@ -85,7 +85,7 @@ app.prepare().then(() => {
                 const isFinal = response.is_final;
                 
                 if (transcript) {
-                    console.log(`Deepgram: [${isFinal ? 'FINAL' : 'INTERIM'}] -> ${transcript}`);
+                    console.log(`[Deepgram] [${isFinal ? 'FINAL' : 'INTERIM'}] -> ${transcript}`);
                     
                     // Interruption Logic: If the user speaks while AI is speaking, stop the AI
                     if (isAiSpeaking) {
@@ -127,7 +127,7 @@ app.prepare().then(() => {
         try {
             if (!text || text.trim().length === 0) return;
             
-            console.log('Google TTS: Preparing Zero-Cost Voice pipeline...');
+            console.log(`[Google TTS] 🔊 Starting voice for: "${text.substring(0, 30)}..."`);
             const speechId = ++activeSpeechId;
             shouldInterrupt = false;
             isAiSpeaking = true;
@@ -158,8 +158,12 @@ app.prepare().then(() => {
                     host: 'https://translate.google.com',
                 });
 
-                const response = await axios.get(url, { responseType: 'arraybuffer' });
+                const response = await axios.get(url, { 
+                    responseType: 'arraybuffer',
+                    timeout: 5000 
+                });
                 const mp3Buffer = Buffer.from(response.data);
+                console.log(`[Google TTS] ✅ Buffer received (${mp3Buffer.length} bytes)`);
 
                 // MP3 to PCM 8k conversion for Telephony
                 const pcmBuffer = await new Promise((resolve, reject) => {
