@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import VoiceOrb from './VoiceOrb';
-import { Mic, MicOff, Volume2, Globe, Sparkles, MessageSquare, Clock, Bot, User, Send } from 'lucide-react';
+import { Mic, MicOff, Volume2, Globe, Sparkles, MessageSquare, Clock, Bot, User, Send, Zap } from 'lucide-react';
 
 export default function CustomVoiceAgent() {
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
